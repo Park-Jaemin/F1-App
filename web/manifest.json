@@ -1,11 +1,11 @@
 {
-    "name": "f1_app",
-    "short_name": "f1_app",
-    "start_url": ".",
+    "name": "F1 레이스 결과",
+    "short_name": "F1",
+    "start_url": "/F1-App/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A1A1A",
+    "theme_color": "#E10600",
+    "description": "Formula 1 레이스 결과 및 챔피언십 순위",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
