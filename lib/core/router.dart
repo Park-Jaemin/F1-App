@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/race_detail/race_detail_screen.dart';
+import '../screens/live/live_screen.dart';
+import '../screens/replay/replay_screen.dart';
 import '../screens/standings/standings_screen.dart';
 
 final appRouter = GoRouter(
@@ -30,6 +32,24 @@ final appRouter = GoRouter(
                       meetingName: meetingName,
                     );
                   },
+                  routes: [
+                    GoRoute(
+                      path: 'replay/:sessionKey/:sessionName',
+                      builder: (context, state) {
+                        final sessionKey =
+                            int.parse(state.pathParameters['sessionKey']!);
+                        final meetingName = Uri.decodeComponent(
+                            state.pathParameters['meetingName']!);
+                        final sessionName = Uri.decodeComponent(
+                            state.pathParameters['sessionName']!);
+                        return ReplayScreen(
+                          sessionKey: sessionKey,
+                          meetingName: meetingName,
+                          sessionName: sessionName,
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -40,6 +60,14 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/standings',
               builder: (context, state) => const StandingsScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/live',
+              builder: (context, state) => const LiveScreen(),
             ),
           ],
         ),
@@ -71,6 +99,10 @@ class _MainShell extends StatelessWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.emoji_events),
             label: '순위',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.live_tv),
+            label: '라이브',
           ),
         ],
       ),

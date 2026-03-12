@@ -19,9 +19,6 @@ class ResultList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final resultsAsync = ref.watch(sessionResultsProvider(sessionKey));
-    final bestLapsAsync = isPractice
-        ? ref.watch(sessionBestLapsProvider(sessionKey))
-        : null;
 
     return resultsAsync.when(
       data: (results) {
@@ -33,9 +30,6 @@ class ResultList extends ConsumerWidget {
             ),
           );
         }
-
-        final bestLaps = bestLapsAsync?.valueOrNull ?? {};
-
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: results.length,
@@ -45,7 +39,10 @@ class ResultList extends ConsumerWidget {
             final teamColor = result.teamColour != null
                 ? Color(int.parse('FF${result.teamColour}', radix: 16))
                 : F1Colors.getTeamColor(result.teamName);
-            final bestLap = isPractice ? bestLaps[result.driverNumber] : null;
+
+            // 연습주행이 아니고 그리드 정보가 있을 때만 변동폭 계산
+            final change = isPractice ? null : result.positionChange;
+            final showGridInfo = !isPractice && result.gridPosition != null && result.gridPosition! > 0;
 
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
@@ -65,8 +62,9 @@ class ResultList extends ConsumerWidget {
               ),
               child: Row(
                 children: [
+                  // 최종 순위
                   SizedBox(
-                    width: 30,
+                    width: 28,
                     child: Text(
                       result.position > 0 ? '${result.position}' : '-',
                       style: TextStyle(
@@ -79,7 +77,52 @@ class ResultList extends ConsumerWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 4),
+                  // 등강폭 또는 그리드 정보 표시
+                  SizedBox(
+                    width: 36,
+                    child: showGridInfo
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (change != null) ...[
+                                Icon(
+                                  change > 0
+                                      ? Icons.arrow_drop_up
+                                      : (change < 0
+                                          ? Icons.arrow_drop_down
+                                          : Icons.remove),
+                                  color: change > 0
+                                      ? Colors.green
+                                      : (change < 0 ? Colors.red : Colors.grey),
+                                  size: 22,
+                                ),
+                                Text(
+                                  change == 0 ? 'G${result.gridPosition}' : '${change.abs()}',
+                                  style: TextStyle(
+                                    color: change > 0
+                                        ? Colors.green
+                                        : (change < 0 ? Colors.red : Colors.grey),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ] else ...[
+                                // change가 계산되지 않았지만 gridPosition은 있는 경우
+                                Text(
+                                  'G${result.gridPosition}',
+                                  style: const TextStyle(
+                                    color: F1Colors.textSecondary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  const SizedBox(width: 4),
                   Container(
                     width: 3,
                     height: 36,
@@ -92,8 +135,7 @@ class ResultList extends ConsumerWidget {
                       children: [
                         Text(
                           localizeDriver(result.nameAcronym, result.broadcastName),
-                          style:
-                              Theme.of(context).textTheme.titleMedium,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                         Text(
                           localizeTeam(result.teamName),
@@ -121,40 +163,23 @@ class ResultList extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else ...[
-                    if (isPractice && bestLap != null)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Text(
-                          _formatLapTime(bestLap),
-                          style: TextStyle(
-                            color: index == 0
-                                ? const Color(0xFFAA00FF)
-                                : F1Colors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
+                  else if (result.points != null && result.points! > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: F1Colors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${result.points} pts',
+                        style: const TextStyle(
+                          color: F1Colors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    if (result.points != null && result.points! > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: F1Colors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${result.points} pts',
-                          style: const TextStyle(
-                            color: F1Colors.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
+                    ),
                 ],
               ),
             );
@@ -164,12 +189,6 @@ class ResultList extends ConsumerWidget {
       loading: () => const F1LoadingWidget(),
       error: (error, _) => F1ErrorWidget(error: error),
     );
-  }
-
-  String _formatLapTime(double duration) {
-    final minutes = duration ~/ 60;
-    final seconds = duration % 60;
-    return '$minutes:${seconds.toStringAsFixed(3).padLeft(6, '0')}';
   }
 
   Color _getPositionColor(int position) {

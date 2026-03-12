@@ -34,6 +34,7 @@ class Session {
 
   bool get isRace => sessionType == 'Race';
   bool get isQualifying => sessionType == 'Qualifying';
+  bool get isPractice => sessionType.contains('Practice'); // 추가
   bool get isCompleted =>
       dateEnd != null && dateEnd!.isBefore(DateTime.now());
 }

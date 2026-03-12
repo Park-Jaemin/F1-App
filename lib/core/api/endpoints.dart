@@ -10,4 +10,9 @@ class ApiEndpoints {
   static const String stints = '/stints';
   static const String championshipDrivers = '/championship_drivers';
   static const String championshipConstructors = '/championship_teams';
+  static const String position = '/position';
+  static const String intervals = '/intervals';
+  static const String raceControl = '/race_control';
+  static const String weather = '/weather';
+  static const String location = '/location';
 }

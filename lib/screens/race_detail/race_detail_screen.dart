@@ -84,14 +84,21 @@ class RaceDetailScreen extends ConsumerWidget {
                 indicatorColor: F1Colors.primary,
               ),
             ),
-            body: TabBarView(
-              children: [
-                ...sortedSessions.map((s) => ResultList(
-                  sessionKey: s.sessionKey,
-                  isPractice: s.sessionType == 'Practice',
-                )),
-                if (raceSession != null) PitStopsTab(sessionKey: raceSession.sessionKey),
-              ],
+            body: _LazyTabBarView(
+              length: tabsCount,
+              builder: (context, index) {
+                if (index < sortedSessions.length) {
+                  final session = sortedSessions[index];
+                  return ResultList(
+                    sessionKey: session.sessionKey,
+                    isPractice: session.sessionType == 'Practice',
+                  );
+                }
+                if (raceSession != null && index == sortedSessions.length) {
+                  return PitStopsTab(sessionKey: raceSession.sessionKey);
+                }
+                return const SizedBox.shrink();
+              },
             ),
           ),
         );
@@ -106,6 +113,85 @@ class RaceDetailScreen extends ConsumerWidget {
         appBar: AppBar(backgroundColor: F1Colors.background),
         body: F1ErrorWidget(error: error),
       ),
+    );
+  }
+}
+
+class _LazyTabBarView extends StatefulWidget {
+  final int length;
+  final IndexedWidgetBuilder builder;
+
+  const _LazyTabBarView({
+    required this.length,
+    required this.builder,
+  });
+
+  @override
+  State<_LazyTabBarView> createState() => _LazyTabBarViewState();
+}
+
+class _LazyTabBarViewState extends State<_LazyTabBarView> {
+  TabController? _controller;
+  final Set<int> _loaded = <int>{};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (controller == _controller) return;
+
+    _controller?.removeListener(_onControllerChanged);
+    _controller = controller;
+    _syncLoaded();
+    _controller?.addListener(_onControllerChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LazyTabBarView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.length < oldWidget.length) {
+      _loaded.removeWhere((i) => i >= widget.length);
+    }
+    _syncLoaded();
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    _syncLoaded();
+  }
+
+  void _syncLoaded() {
+    final controller = _controller;
+    if (controller == null) return;
+    final current = controller.index;
+    var changed = false;
+    changed = _markLoaded(current) || changed;
+    changed = _markLoaded(current - 1) || changed;
+    changed = _markLoaded(current + 1) || changed;
+    if (changed && mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _markLoaded(int index) {
+    if (index < 0 || index >= widget.length) return false;
+    return _loaded.add(index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBarView(
+      children: List.generate(widget.length, (index) {
+        if (_loaded.contains(index)) {
+          return widget.builder(context, index);
+        }
+        return const SizedBox.shrink();
+      }),
     );
   }
 }

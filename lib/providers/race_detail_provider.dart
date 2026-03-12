@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/driver.dart';
 import '../models/lap.dart';
@@ -27,6 +28,11 @@ final sessionResultsProvider =
   final results = resultData.map((json) {
     final driverNum = (json['driver_number'] as num?)?.toInt() ?? 0;
     final driver = driverMap[driverNum];
+    
+    if (json['grid_position'] != null) {
+      debugPrint('Driver $driverNum has grid_position: ${json['grid_position']}');
+    }
+
     return SessionResult.fromJson({
       ...json,
       if (driver != null) ...{

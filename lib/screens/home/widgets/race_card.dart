@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/korean_locale.dart';
 import '../../../core/theme.dart';
 import '../../../models/meeting.dart';
+import '../../../models/session.dart';
 import '../../../providers/meetings_provider.dart';
 import '../../../providers/race_detail_provider.dart';
 
@@ -23,7 +24,9 @@ class RaceCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
     final isPast = meeting.dateStart.isBefore(now);
-    final raceSessionAsync = ref.watch(raceSessionProvider(meeting.meetingKey));
+    final raceSessionAsync = isPast
+        ? ref.watch(raceSessionProvider(meeting.meetingKey))
+        : const AsyncValue<Session?>.data(null);
 
     return GestureDetector(
       onTap: onTap,

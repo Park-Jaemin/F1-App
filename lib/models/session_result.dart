@@ -6,6 +6,7 @@ class SessionResult {
   final String teamName;
   final String? teamColour;
   final int? points;
+  final int? gridPosition; // 그리드 출발 위치
   final bool dnf;
   final bool dns;
   final bool dsq;
@@ -22,6 +23,7 @@ class SessionResult {
     required this.teamName,
     this.teamColour,
     this.points,
+    this.gridPosition,
     this.dnf = false,
     this.dns = false,
     this.dsq = false,
@@ -40,6 +42,7 @@ class SessionResult {
       teamName: json['team_name'] as String? ?? '',
       teamColour: json['team_colour'] as String?,
       points: (json['points'] as num?)?.toInt(),
+      gridPosition: (json['grid_position'] as num?)?.toInt(),
       dnf: json['dnf'] as bool? ?? false,
       dns: json['dns'] as bool? ?? false,
       dsq: json['dsq'] as bool? ?? false,
@@ -53,6 +56,12 @@ class SessionResult {
   }
 
   bool get isNonFinisher => dnf || dns || dsq || nc || dnq;
+
+  // 순위 변동 계산 로직 강화
+  int? get positionChange {
+    if (gridPosition == null || gridPosition! <= 0 || position <= 0) return null;
+    return gridPosition! - position;
+  }
 
   String? get statusLabel {
     if (dsq) return 'DSQ';

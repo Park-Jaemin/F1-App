@@ -25,6 +25,8 @@ class PodiumSection extends ConsumerWidget {
       return _UpcomingInfo(meeting: meeting);
     }
 
+    final raceSessionAsync =
+        ref.watch(raceSessionProvider(meeting.meetingKey));
     final sessionsAsync = ref.watch(sessionsProvider(meeting.meetingKey));
 
     return sessionsAsync.when(
@@ -44,9 +46,30 @@ class PodiumSection extends ConsumerWidget {
           );
         }
 
-        return _SessionTabsPodium(
-          sessions: completed,
-          meeting: meeting,
+        return Column(
+          children: [
+            Expanded(
+              child: _SessionTabsPodium(
+                sessions: completed,
+                meeting: meeting,
+              ),
+            ),
+            raceSessionAsync.when(
+              data: (session) {
+                if (session == null || !session.isCompleted) {
+                  return const SizedBox.shrink();
+                }
+                return _ReplayButton(
+                  meetingKey: meeting.meetingKey,
+                  meetingName: meeting.meetingName,
+                  sessionKey: session.sessionKey,
+                  sessionName: session.sessionName,
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (e, _) => const SizedBox.shrink(),
+            ),
+          ],
         );
       },
       loading: () => const F1LoadingWidget(),
@@ -221,6 +244,63 @@ class _PodiumDisplay extends StatelessWidget {
               platformHeight: 52,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReplayButton extends StatelessWidget {
+  final int meetingKey;
+  final String meetingName;
+  final int sessionKey;
+  final String sessionName;
+
+  const _ReplayButton({
+    required this.meetingKey,
+    required this.meetingName,
+    required this.sessionKey,
+    required this.sessionName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        decoration: const BoxDecoration(
+          color: F1Colors.surface,
+          border: Border(top: BorderSide(color: F1Colors.divider)),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              final encodedMeeting = Uri.encodeComponent(meetingName);
+              final encodedSession = Uri.encodeComponent(sessionName);
+              context.go(
+                '/race/$meetingKey/$encodedMeeting/replay/$sessionKey/$encodedSession',
+              );
+            },
+            icon: const Icon(Icons.replay, size: 20),
+            label: const Text(
+              'REPLAY',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                fontSize: 14,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: F1Colors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ),
       ),
     );
