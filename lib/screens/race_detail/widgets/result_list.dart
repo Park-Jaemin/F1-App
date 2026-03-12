@@ -8,12 +8,20 @@ import '../../shared/loading_widget.dart';
 
 class ResultList extends ConsumerWidget {
   final int sessionKey;
+  final bool isPractice;
 
-  const ResultList({super.key, required this.sessionKey});
+  const ResultList({
+    super.key,
+    required this.sessionKey,
+    this.isPractice = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final resultsAsync = ref.watch(sessionResultsProvider(sessionKey));
+    final bestLapsAsync = isPractice
+        ? ref.watch(sessionBestLapsProvider(sessionKey))
+        : null;
 
     return resultsAsync.when(
       data: (results) {
@@ -25,6 +33,9 @@ class ResultList extends ConsumerWidget {
             ),
           );
         }
+
+        final bestLaps = bestLapsAsync?.valueOrNull ?? {};
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: results.length,
@@ -34,6 +45,7 @@ class ResultList extends ConsumerWidget {
             final teamColor = result.teamColour != null
                 ? Color(int.parse('FF${result.teamColour}', radix: 16))
                 : F1Colors.getTeamColor(result.teamName);
+            final bestLap = isPractice ? bestLaps[result.driverNumber] : null;
 
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
@@ -109,23 +121,40 @@ class ResultList extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else if (result.points != null && result.points! > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: F1Colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${result.points} pts',
-                        style: const TextStyle(
-                          color: F1Colors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                  else ...[
+                    if (isPractice && bestLap != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          _formatLapTime(bestLap),
+                          style: TextStyle(
+                            color: index == 0
+                                ? const Color(0xFFAA00FF)
+                                : F1Colors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                         ),
                       ),
-                    ),
+                    if (result.points != null && result.points! > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: F1Colors.surfaceVariant,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${result.points} pts',
+                          style: const TextStyle(
+                            color: F1Colors.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             );
@@ -135,6 +164,12 @@ class ResultList extends ConsumerWidget {
       loading: () => const F1LoadingWidget(),
       error: (error, _) => F1ErrorWidget(error: error),
     );
+  }
+
+  String _formatLapTime(double duration) {
+    final minutes = duration ~/ 60;
+    final seconds = duration % 60;
+    return '$minutes:${seconds.toStringAsFixed(3).padLeft(6, '0')}';
   }
 
   Color _getPositionColor(int position) {

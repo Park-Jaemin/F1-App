@@ -53,7 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final index = meetings.indexOf(target);
       if (_chipScrollController.hasClients && index >= 0) {
         _chipScrollController.animateTo(
-          index * 92.0,
+          index * 108.0, // width(100) + horizontal margin(4*2) = 108
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeOut,
         );
@@ -104,7 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           // ─── GP 수평 스크롤 목록 ─────────────────────────────
           SizedBox(
-            height: 110,
+            height: 140, // 110 -> 140으로 확대
             child: meetingsAsync.when(
               data: (meetings) {
                 _autoSelect(meetings);

@@ -22,108 +22,90 @@ class RaceDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(sessionsProvider(meetingKey));
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: F1Colors.background,
-        appBar: AppBar(
-          backgroundColor: F1Colors.background,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                localizeGrandPrix(meetingName),
-                style: const TextStyle(
-                  color: F1Colors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+    return sessionsAsync.when(
+      data: (sessions) {
+        if (sessions.isEmpty) {
+          return Scaffold(
+            backgroundColor: F1Colors.background,
+            appBar: AppBar(
+              backgroundColor: F1Colors.background,
+              title: Text(localizeGrandPrix(meetingName)),
+            ),
+            body: const Center(
+              child: Text(
+                '세션 정보가 없습니다',
+                style: TextStyle(color: F1Colors.textSecondary),
               ),
-            ],
-          ),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: '결과'),
-              Tab(text: '피트스톱'),
-            ],
-            labelColor: F1Colors.primary,
-            unselectedLabelColor: F1Colors.textSecondary,
-            indicatorColor: F1Colors.primary,
-          ),
-        ),
-        body: sessionsAsync.when(
-          data: (sessions) {
-            // Find race session
-            final raceSession = sessions
-                .where((s) => s.sessionType == 'Race')
-                .firstOrNull;
+            ),
+          );
+        }
 
-            if (raceSession == null) {
-              // Show all sessions if no race session found
-              return _SessionSelector(
-                sessions: sessions,
-                meetingKey: meetingKey,
-              );
-            }
+        // 세션 정렬 (시간순)
+        final sortedSessions = List.of(sessions)
+          ..sort((a, b) => a.dateStart.compareTo(b.dateStart));
 
-            return _RaceDetailTabs(sessionKey: raceSession.sessionKey);
-          },
-          loading: () => const F1LoadingWidget(),
-          error: (error, _) => F1ErrorWidget(error: error),
-        ),
+        // 레이스 세션 찾기 (피트스톱 탭을 위해)
+        final raceSession = sortedSessions.where((s) => s.isRace).firstOrNull;
+
+        // 탭 구성: 모든 세션 + (레이스가 있다면) 피트스톱
+        final tabsCount = sortedSessions.length + (raceSession != null ? 1 : 0);
+
+        return DefaultTabController(
+          length: tabsCount,
+          initialIndex: (sortedSessions.length - 1).clamp(0, tabsCount - 1), // 기본으로 마지막 세션(보통 레이스) 선택
+          child: Scaffold(
+            backgroundColor: F1Colors.background,
+            appBar: AppBar(
+              backgroundColor: F1Colors.background,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localizeGrandPrix(meetingName),
+                    style: const TextStyle(
+                      color: F1Colors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              bottom: TabBar(
+                isScrollable: true,
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.zero,
+                tabAlignment: TabAlignment.start,
+                tabs: [
+                  ...sortedSessions.map((s) => Tab(text: localizeSession(s.sessionName))),
+                  if (raceSession != null) const Tab(text: '피트스톱'),
+                ],
+                labelColor: F1Colors.primary,
+                unselectedLabelColor: F1Colors.textSecondary,
+                indicatorColor: F1Colors.primary,
+              ),
+            ),
+            body: TabBarView(
+              children: [
+                ...sortedSessions.map((s) => ResultList(
+                  sessionKey: s.sessionKey,
+                  isPractice: s.sessionType == 'Practice',
+                )),
+                if (raceSession != null) PitStopsTab(sessionKey: raceSession.sessionKey),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => Scaffold(
+        backgroundColor: F1Colors.background,
+        appBar: AppBar(backgroundColor: F1Colors.background),
+        body: const F1LoadingWidget(),
       ),
-    );
-  }
-}
-
-class _SessionSelector extends StatelessWidget {
-  final List<dynamic> sessions;
-  final int meetingKey;
-
-  const _SessionSelector({
-    required this.sessions,
-    required this.meetingKey,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.event_note,
-            color: F1Colors.textSecondary,
-            size: 48,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '레이스 데이터가 아직 없습니다',
-            style: TextStyle(color: F1Colors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${sessions.length}개 세션 등록됨',
-            style: const TextStyle(color: F1Colors.textSecondary, fontSize: 12),
-          ),
-        ],
+      error: (error, _) => Scaffold(
+        backgroundColor: F1Colors.background,
+        appBar: AppBar(backgroundColor: F1Colors.background),
+        body: F1ErrorWidget(error: error),
       ),
-    );
-  }
-}
-
-class _RaceDetailTabs extends ConsumerWidget {
-  final int sessionKey;
-
-  const _RaceDetailTabs({required this.sessionKey});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return TabBarView(
-      children: [
-        ResultList(sessionKey: sessionKey),
-        PitStopsTab(sessionKey: sessionKey),
-      ],
     );
   }
 }

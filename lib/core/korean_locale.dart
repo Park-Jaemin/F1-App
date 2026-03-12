@@ -175,6 +175,18 @@ const Map<String, String> kTeamNames = {
   'Cadillac': '캐딜락'
 };
 
+/// F1 세션 한국어 이름
+const Map<String, String> kSessionNames = {
+  'Practice 1': '연습 주행 1',
+  'Practice 2': '연습 주행 2',
+  'Practice 3': '연습 주행 3',
+  'Qualifying': '퀄리파잉',
+  'Sprint Shootout': '스프린트 슈트아웃',
+  'Sprint Qualifying': '스프린트 퀄리파잉',
+  'Sprint': '스프린트',
+  'Race': '레이스',
+};
+
 /// 그랑프리 이름을 한국어로 반환합니다. 매핑이 없으면 원본 반환.
 String localizeGrandPrix(String meetingName) {
   if (kGrandPrixNames.containsKey(meetingName)) {
@@ -188,6 +200,11 @@ String localizeGrandPrix(String meetingName) {
     }
   }
   return meetingName;
+}
+
+/// 세션 이름을 한국어로 반환합니다.
+String localizeSession(String sessionName) {
+  return kSessionNames[sessionName] ?? sessionName;
 }
 
 /// 드라이버 이름을 한국어로 반환합니다. 매핑이 없으면 broadcastName 반환.

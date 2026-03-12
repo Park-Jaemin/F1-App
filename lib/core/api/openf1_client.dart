@@ -80,6 +80,14 @@ class OpenF1Client {
     return _parseList(response.data);
   }
 
+  Future<List<Map<String, dynamic>>> getAllLaps(int sessionKey) async {
+    final response = await _dio.get(
+      ApiEndpoints.laps,
+      queryParameters: {'session_key': sessionKey},
+    );
+    return _parseList(response.data);
+  }
+
   Future<List<Map<String, dynamic>>> getPitStops(int sessionKey) async {
     final response = await _dio.get(
       ApiEndpoints.pit,

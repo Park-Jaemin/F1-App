@@ -67,12 +67,22 @@ class TeamStanding {
   });
 
   factory TeamStanding.fromJson(Map<String, dynamic> json) {
+    final position =
+        (json['position'] ?? json['position_current'] ?? 0) as num?;
+    final positionStart =
+        (json['position_before'] ?? json['position_start'] ?? 0) as num?;
+    final points = (json['points'] ?? json['points_current'] ?? 0) as num?;
+    final teamName = (json['team_name'] ??
+            json['constructor_name'] ??
+            json['team'] ??
+            'Unknown Team')
+        as String;
     return TeamStanding(
-      position: (json['position'] as num?)?.toInt() ?? 0,
-      positionStart: (json['position_before'] as num?)?.toInt() ?? 0,
-      teamName: (json['team_name'] ?? json['constructor_name'] ?? 'Unknown Team') as String,
+      position: position?.toInt() ?? 0,
+      positionStart: positionStart?.toInt() ?? 0,
+      teamName: teamName,
       teamColour: json['team_colour'] as String?,
-      points: (json['points'] as num?)?.toInt() ?? 0,
+      points: points?.toInt() ?? 0,
     );
   }
 
@@ -204,31 +214,42 @@ final teamStandingsProvider =
     for (final d in drivers) d.teamName: d.teamColour,
   };
 
-  if (data.isEmpty) {
+  List<TeamStanding> buildFromDrivers() {
     final teamPoints = <String, int>{};
     for (final driver in drivers) {
       if (driver.teamName != 'Unknown Team') {
-        teamPoints[driver.teamName] = (teamPoints[driver.teamName] ?? 0) + driver.pointsCurrent;
+        teamPoints[driver.teamName] =
+            (teamPoints[driver.teamName] ?? 0) + driver.pointsCurrent;
       }
     }
-    final standings = teamPoints.entries.map((e) => TeamStanding(
-      position: 0,
-      positionStart: 0,
-      teamName: e.key,
-      teamColour: teamColourMap[e.key],
-      points: e.value,
-    )).toList();
+    final standings = teamPoints.entries
+        .map((e) => TeamStanding(
+              position: 0,
+              positionStart: 0,
+              teamName: e.key,
+              teamColour: teamColourMap[e.key],
+              points: e.value,
+            ))
+        .toList();
     standings.sort((a, b) => b.points.compareTo(a.points));
-    return standings.asMap().entries.map((e) => TeamStanding(
-      position: e.key + 1,
-      positionStart: 0,
-      teamName: e.value.teamName,
-      teamColour: teamColourMap[e.value.teamName],
-      points: e.value.points,
-    )).toList();
+    return standings
+        .asMap()
+        .entries
+        .map((e) => TeamStanding(
+              position: e.key + 1,
+              positionStart: 0,
+              teamName: e.value.teamName,
+              teamColour: teamColourMap[e.value.teamName],
+              points: e.value.points,
+            ))
+        .toList();
   }
-  
-  final standings = data.map((json) {
+
+  if (data.isEmpty) {
+    return buildFromDrivers();
+  }
+
+  var standings = data.map((json) {
     final teamName = (json['team_name'] ?? json['constructor_name'] ?? 'Unknown Team') as String;
     return TeamStanding.fromJson({
       ...json,
@@ -236,7 +257,53 @@ final teamStandingsProvider =
         'team_colour': teamColourMap[teamName],
     });
   }).toList();
-  
+
+  final knownCount = standings
+      .where((s) => s.teamName.trim().isNotEmpty && s.teamName != 'Unknown Team')
+      .length;
+  if (knownCount == 0) {
+    return buildFromDrivers();
+  }
+
+  final computed = buildFromDrivers();
+  if (computed.isNotEmpty) {
+    final used = <String>{
+      for (final s in standings)
+        if (s.teamName.trim().isNotEmpty && s.teamName != 'Unknown Team')
+          s.teamName
+    };
+    final pointsToTeams = <int, List<TeamStanding>>{};
+    for (final s in computed) {
+      pointsToTeams.putIfAbsent(s.points, () => []).add(s);
+    }
+
+    standings = standings.map((s) {
+      final name = s.teamName.trim();
+      if (name.isNotEmpty && name != 'Unknown Team') return s;
+
+      final candidates = pointsToTeams[s.points] ?? const <TeamStanding>[];
+      final candidate = candidates.firstWhere(
+        (c) => !used.contains(c.teamName),
+        orElse: () => const TeamStanding(
+          position: 0,
+          positionStart: 0,
+          teamName: 'Unknown Team',
+          points: 0,
+        ),
+      );
+
+      if (candidate.teamName == 'Unknown Team') return s;
+      used.add(candidate.teamName);
+      return TeamStanding(
+        position: s.position > 0 ? s.position : candidate.position,
+        positionStart: s.positionStart,
+        teamName: candidate.teamName,
+        teamColour: candidate.teamColour,
+        points: s.points,
+      );
+    }).toList();
+  }
+
   standings.sort((a, b) => a.position.compareTo(b.position));
   return standings.where((s) => s.position > 0).toList();
 });

@@ -25,67 +25,81 @@ class GpChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        width: 84,
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        width: 100, // 사이즈 키움 (84 -> 100)
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? F1Colors.primary : F1Colors.surface,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
                 ? F1Colors.primary
                 : isUpcoming
                     ? Colors.green.withValues(alpha: 0.6)
                     : Colors.transparent,
-            width: 1.5,
+            width: 2.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
                     color: F1Colors.primary.withValues(alpha: 0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   )
                 ]
               : null,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'R$roundNumber',
-                  style: TextStyle(
-                    color: isSelected
-                        ? Colors.white70
-                        : F1Colors.textSecondary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  meeting.flagEmoji,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ],
+            // 국가 이모지 중앙 배치 및 사이즈 확대
+            Text(
+              meeting.flagEmoji,
+              style: const TextStyle(fontSize: 30),
             ),
             const SizedBox(height: 6),
-            Text(
-              meeting.circuitShortName.isNotEmpty
-                  ? meeting.circuitShortName
-                  : meeting.location,
-              style: TextStyle(
-                color: isSelected ? Colors.white : F1Colors.textPrimary,
-                fontSize: 11,
-                fontWeight:
-                    isSelected ? FontWeight.bold : FontWeight.normal,
-                height: 1.3,
+            // 라운드 정보
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected 
+                  ? Colors.white.withValues(alpha: 0.2) 
+                  : F1Colors.background,
+                borderRadius: BorderRadius.circular(4),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              child: Text(
+                'ROUND $roundNumber',
+                style: TextStyle(
+                  color: isSelected
+                      ? Colors.white
+                      : F1Colors.textSecondary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            // 서킷 이름 중앙 배치
+            SizedBox(
+              height: 28,
+              child: Center(
+                child: Text(
+                  meeting.circuitShortName.isNotEmpty
+                      ? meeting.circuitShortName
+                      : meeting.location,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : F1Colors.textPrimary,
+                    fontSize: 11,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.w500,
+                    height: 1.1,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
           ],
         ),

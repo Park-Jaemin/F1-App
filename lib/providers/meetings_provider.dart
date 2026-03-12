@@ -10,13 +10,26 @@ final selectedYearProvider = StateProvider<int>((ref) => DateTime.now().year);
 final meetingsProvider =
     FutureProvider.family<List<Meeting>, int>((ref, year) async {
   final client = ref.read(openF1ClientProvider);
-  final data = await client.getMeetings(year);
-  final meetings = data
-      .map((json) => Meeting.fromJson(json))
-      .where((m) => !_isTestingMeeting(m.meetingName))
-      .toList();
-  meetings.sort((a, b) => a.dateStart.compareTo(b.dateStart));
-  return meetings;
+  try {
+    final data = await client.getMeetings(year);
+    final meetings = data
+        .map((json) {
+          try {
+            return Meeting.fromJson(json);
+          } catch (e) {
+            debugPrint('Error parsing meeting: $e, data: $json');
+            rethrow;
+          }
+        })
+        .where((m) => !_isTestingMeeting(m.meetingName))
+        .toList();
+    meetings.sort((a, b) => a.dateStart.compareTo(b.dateStart));
+    return meetings;
+  } catch (e, stack) {
+    debugPrint('Error fetching meetings for year $year: $e');
+    debugPrint(stack.toString());
+    rethrow;
+  }
 });
 
 bool _isTestingMeeting(String name) {

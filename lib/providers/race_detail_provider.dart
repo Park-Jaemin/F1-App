@@ -100,6 +100,24 @@ final stintsProvider =
   return stints;
 });
 
+/// 세션 내 각 드라이버의 베스트 랩타임 (driverNumber → bestLapDuration)
+final sessionBestLapsProvider =
+    FutureProvider.family<Map<int, double>, int>((ref, sessionKey) async {
+  final client = ref.read(openF1ClientProvider);
+  final data = await client.getAllLaps(sessionKey);
+  final laps = data.map((json) => Lap.fromJson(json)).toList();
+
+  final bestLaps = <int, double>{};
+  for (final lap in laps) {
+    if (lap.lapDuration == null || lap.isPitOutLap) continue;
+    final current = bestLaps[lap.driverNumber];
+    if (current == null || lap.lapDuration! < current) {
+      bestLaps[lap.driverNumber] = lap.lapDuration!;
+    }
+  }
+  return bestLaps;
+});
+
 final selectedDriverNumberProvider = StateProvider<int?>((ref) => null);
 
 /// 특정 그랑프리의 포디엄 결과 (상위 3명)
@@ -109,6 +127,16 @@ final podiumProvider =
   if (session == null) return [];
   final results =
       await ref.watch(sessionResultsProvider(session.sessionKey).future);
+  return results
+      .where((r) => !r.dnf && !r.dns && !r.dsq && r.position > 0)
+      .take(3)
+      .toList();
+});
+
+/// 세션별 상위 3명 결과 (탭 선택 시에만 호출)
+final sessionTop3Provider =
+    FutureProvider.family<List<SessionResult>, int>((ref, sessionKey) async {
+  final results = await ref.watch(sessionResultsProvider(sessionKey).future);
   return results
       .where((r) => !r.dnf && !r.dns && !r.dsq && r.position > 0)
       .take(3)

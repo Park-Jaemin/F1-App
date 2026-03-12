@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../core/korean_locale.dart';
 import '../../../core/theme.dart';
 import '../../../models/meeting.dart';
+import '../../../models/session.dart';
 import '../../../models/session_result.dart';
+import '../../../providers/meetings_provider.dart';
 import '../../../providers/race_detail_provider.dart';
 import '../../shared/loading_widget.dart';
 
@@ -23,9 +25,142 @@ class PodiumSection extends ConsumerWidget {
       return _UpcomingInfo(meeting: meeting);
     }
 
-    final podiumAsync = ref.watch(podiumProvider(meeting.meetingKey));
+    final sessionsAsync = ref.watch(sessionsProvider(meeting.meetingKey));
 
-    return podiumAsync.when(
+    return sessionsAsync.when(
+      data: (sessions) {
+        final now = DateTime.now();
+        final completed = sessions
+            .where((s) => s.dateEnd != null && s.dateEnd!.isBefore(now))
+            .toList()
+          ..sort((a, b) => a.dateStart.compareTo(b.dateStart));
+
+        if (completed.isEmpty) {
+          return const Center(
+            child: Text(
+              '결과 데이터 없음',
+              style: TextStyle(color: F1Colors.textSecondary),
+            ),
+          );
+        }
+
+        return _SessionTabsPodium(
+          sessions: completed,
+          meeting: meeting,
+        );
+      },
+      loading: () => const F1LoadingWidget(),
+      error: (e, _) => const Center(
+        child: Text(
+          '결과를 불러올 수 없습니다',
+          style: TextStyle(color: F1Colors.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 세션 탭 + 포디엄 ────────────────────────────────────────────────
+class _SessionTabsPodium extends StatelessWidget {
+  final List<Session> sessions;
+  final Meeting meeting;
+
+  const _SessionTabsPodium({
+    required this.sessions,
+    required this.meeting,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: sessions.length,
+      initialIndex: sessions.length - 1, // 가장 최신 세션이 디폴트
+      child: Column(
+        children: [
+          // 헤더
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        localizeGrandPrix(meeting.meetingName),
+                        style: const TextStyle(
+                          color: F1Colors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        DateFormat('yyyy년 M월 d일').format(meeting.dateStart),
+                        style: const TextStyle(
+                          color: F1Colors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.push(
+                    '/race/${meeting.meetingKey}/${meeting.meetingName}',
+                  ),
+                  icon: const Icon(Icons.list_alt, size: 16),
+                  label: const Text('전체 결과'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: F1Colors.primary,
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 세션 탭
+          TabBar(
+            isScrollable: true,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            tabAlignment: TabAlignment.start,
+            tabs: sessions
+                .map((s) => Tab(text: localizeSession(s.sessionName)))
+                .toList(),
+            labelColor: F1Colors.primary,
+            unselectedLabelColor: F1Colors.textSecondary,
+            indicatorColor: F1Colors.primary,
+            dividerHeight: 0,
+            labelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+            unselectedLabelStyle: const TextStyle(fontSize: 13),
+          ),
+          // 포디엄 표시
+          Expanded(
+            child: TabBarView(
+              children: sessions
+                  .map((s) => _PodiumTab(sessionKey: s.sessionKey))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PodiumTab extends ConsumerWidget {
+  final int sessionKey;
+
+  const _PodiumTab({required this.sessionKey});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final top3Async = ref.watch(sessionTop3Provider(sessionKey));
+
+    return top3Async.when(
       data: (results) {
         if (results.isEmpty) {
           return const Center(
@@ -35,7 +170,7 @@ class PodiumSection extends ConsumerWidget {
             ),
           );
         }
-        return _PodiumDisplay(results: results, meeting: meeting);
+        return _PodiumDisplay(results: results);
       },
       loading: () => const F1LoadingWidget(),
       error: (e, _) => const Center(
@@ -51,94 +186,43 @@ class PodiumSection extends ConsumerWidget {
 // ─── 포디엄 메인 표시 ───────────────────────────────────────────────
 class _PodiumDisplay extends StatelessWidget {
   final List<SessionResult> results;
-  final Meeting meeting;
 
-  const _PodiumDisplay({required this.results, required this.meeting});
+  const _PodiumDisplay({required this.results});
 
   @override
   Widget build(BuildContext context) {
     // 2nd | 1st | 3rd 순서로 정렬
-    final ordered = <SessionResult?>[];
     final first = results.firstWhere((r) => r.position == 1,
         orElse: () => results[0]);
     final second = results.firstWhere((r) => r.position == 2,
         orElse: () => results.length > 1 ? results[1] : results[0]);
     final third = results.firstWhere((r) => r.position == 3,
         orElse: () => results.length > 2 ? results[2] : results[0]);
-    ordered.addAll([second, first, third]);
+    final ordered = [second, first, third];
 
-    return Column(
-      children: [
-        // 헤더
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      localizeGrandPrix(meeting.meetingName),
-                      style: const TextStyle(
-                        color: F1Colors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      DateFormat('yyyy년 M월 d일').format(meeting.dateStart),
-                      style: const TextStyle(
-                        color: F1Colors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => context.push(
-                  '/race/${meeting.meetingKey}/${meeting.meetingName}',
-                ),
-                icon: const Icon(Icons.list_alt, size: 16),
-                label: const Text('전체 결과'),
-                style: TextButton.styleFrom(
-                  foregroundColor: F1Colors.primary,
-                  textStyle: const TextStyle(fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // 포디엄
-        Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _DriverPodiumColumn(
-                    result: ordered[0]!,
-                    platformHeight: 72,
-                  ),
-                  _DriverPodiumColumn(
-                    result: ordered[1]!,
-                    platformHeight: 104,
-                    showTrophy: true,
-                  ),
-                  _DriverPodiumColumn(
-                    result: ordered[2]!,
-                    platformHeight: 52,
-                  ),
-                ],
-              ),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _DriverPodiumColumn(
+              result: ordered[0],
+              platformHeight: 72,
             ),
-          ),
+            _DriverPodiumColumn(
+              result: ordered[1],
+              platformHeight: 104,
+              showTrophy: true,
+            ),
+            _DriverPodiumColumn(
+              result: ordered[2],
+              platformHeight: 52,
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
-      ],
+      ),
     );
   }
 }
@@ -162,7 +246,8 @@ class _DriverPodiumColumn extends StatelessWidget {
         : F1Colors.getTeamColor(result.teamName);
 
     final medalColor = _medalColor(result.position);
-    final driverName = localizeDriver(result.nameAcronym, result.broadcastName);
+    final driverName =
+        localizeDriver(result.nameAcronym, result.broadcastName);
     final teamName = localizeTeam(result.teamName);
 
     return Expanded(
@@ -341,8 +426,14 @@ class _UpcomingInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final daysUntil =
-        meeting.dateStart.difference(DateTime.now()).inDays;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDate = DateTime(
+      meeting.dateStart.year,
+      meeting.dateStart.month,
+      meeting.dateStart.day,
+    );
+    final daysUntil = eventDate.difference(today).inDays;
 
     return Center(
       child: Column(
