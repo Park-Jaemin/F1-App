@@ -20,6 +20,8 @@ class GpChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final isUpcoming = meeting.dateStart.isAfter(now);
+    final isCurrent = !isUpcoming &&
+        now.isBefore(meeting.dateStart.add(const Duration(days: 3)));
 
     return GestureDetector(
       onTap: onTap,
@@ -58,24 +60,29 @@ class GpChip extends StatelessWidget {
               style: const TextStyle(fontSize: 30),
             ),
             const SizedBox(height: 6),
-            // 라운드 정보
+            // 라운드 정보 (진행 중일 때 NOW 표시)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: isSelected 
-                  ? Colors.white.withValues(alpha: 0.2) 
-                  : F1Colors.background,
+                color: isCurrent
+                    ? Colors.red.withValues(alpha: 0.9)
+                    : isSelected
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : F1Colors.background,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                'ROUND $roundNumber',
+                isCurrent ? 'NOW' : 'ROUND $roundNumber',
                 style: TextStyle(
-                  color: isSelected
+                  color: isCurrent
                       ? Colors.white
-                      : F1Colors.textSecondary,
+                      : isSelected
+                          ? Colors.white
+                          : F1Colors.textSecondary,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+                  letterSpacing: 0.6,
                 ),
               ),
             ),

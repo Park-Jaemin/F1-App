@@ -124,6 +124,18 @@ final sessionBestLapsProvider =
   return bestLaps;
 });
 
+/// 연습 세션 결과 + 베스트랩을 한 번에 가져와 함께 표시
+final practiceResultsWithBestLapsProvider = FutureProvider.family<
+    ({List<SessionResult> results, Map<int, double> bestLaps}), int>(
+  (ref, sessionKey) async {
+    final results =
+        await ref.watch(sessionResultsProvider(sessionKey).future);
+    final bestLaps =
+        await ref.watch(sessionBestLapsProvider(sessionKey).future);
+    return (results: results, bestLaps: bestLaps);
+  },
+);
+
 final selectedDriverNumberProvider = StateProvider<int?>((ref) => null);
 
 /// 특정 그랑프리의 포디엄 결과 (상위 3명)

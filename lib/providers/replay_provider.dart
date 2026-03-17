@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/api/openf1_client.dart';
 import '../models/car_location.dart';
 import '../models/driver.dart';
 import '../models/session.dart';
 import '../models/weather.dart';
+import '../models/pit_stop.dart';
 import 'meetings_provider.dart';
 
 class ReplayBufferState {
@@ -34,12 +36,45 @@ final replayBufferProvider = StateNotifierProvider.autoDispose
   return ReplayBufferNotifier(ref, sessionKey);
 });
 
+class ReplayTimelineEvent {
+  final DateTime time;
+  final String title;
+  final String? detail;
+  final int? driverNumber;
+  final int? lapNumber;
+  final String type;
+
+  const ReplayTimelineEvent({
+    required this.time,
+    required this.title,
+    this.detail,
+    this.driverNumber,
+    this.lapNumber,
+    required this.type,
+  });
+}
+
+class ReplaySessionRange {
+  final DateTime start;
+  final DateTime end;
+
+  const ReplaySessionRange({required this.start, required this.end});
+}
+
+class PositionSample {
+  final DateTime time;
+  final int position;
+
+  const PositionSample({required this.time, required this.position});
+}
+
 class ReplayBufferNotifier extends StateNotifier<ReplayBufferState> {
-  static const _chunkMinutes = 2;
-  static const _sampleMs = 5000;
+  static const _chunkMinutes = 1;
+  static const _sampleMs = 30000;
   static const _driverCallDelay = Duration(milliseconds: 2100);
-  static const _bufferAhead = Duration(minutes: 3);
-  static const _bufferBehind = Duration(minutes: 6);
+  static const _bufferAhead = Duration(seconds: 30);
+  static const _bufferBehind = Duration(minutes: 2);
+  static const _maxDrivers = 3;
 
   final Ref ref;
   final int sessionKey;
@@ -79,10 +114,14 @@ class ReplayBufferNotifier extends StateNotifier<ReplayBufferState> {
       final end = session.dateEnd ?? session.dateStart.add(const Duration(hours: 2));
 
       final driversData = await client.getDrivers(sessionKey);
-      final driverNumbers = driversData
+      final allDrivers = driversData
           .map((d) => (d['driver_number'] as num?)?.toInt() ?? 0)
           .where((n) => n > 0)
           .toList();
+
+      final topDrivers = await _selectTopDrivers(client, sessionKey);
+      final driverNumbers =
+          topDrivers.isNotEmpty ? topDrivers : allDrivers.take(_maxDrivers).toList();
 
       final locations = <int, List<CarLocation>>{};
       var chunkStart = start;
@@ -162,6 +201,25 @@ class ReplayBufferNotifier extends StateNotifier<ReplayBufferState> {
     }
   }
 
+  Future<List<int>> _selectTopDrivers(
+      OpenF1Client client, int sessionKey) async {
+    try {
+      final data = await client.getSessionResult(sessionKey);
+      final entries = <({int driver, int position})>[];
+      for (final json in data) {
+        final driverNum = (json['driver_number'] as num?)?.toInt() ?? 0;
+        final position = (json['position'] as num?)?.toInt() ?? 0;
+        if (driverNum > 0 && position > 0) {
+          entries.add((driver: driverNum, position: position));
+        }
+      }
+      entries.sort((a, b) => a.position.compareTo(b.position));
+      return entries.take(_maxDrivers).map((e) => e.driver).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   bool _shouldLoadMoreFor(DateTime time) {
     final loadedUntil = state.loadedUntil;
     if (loadedUntil == null) return true;
@@ -206,6 +264,177 @@ class ReplayBufferNotifier extends StateNotifier<ReplayBufferState> {
   }
 }
 
+final replayTrackOutlineProvider = FutureProvider.autoDispose
+    .family<List<CarLocation>, int>((ref, sessionKey) async {
+  final client = ref.read(openF1ClientProvider);
+  final sessions = await client.getSessionsByKey(sessionKey);
+  if (sessions.isEmpty) return [];
+  final session = Session.fromJson(sessions.first);
+  final start = session.dateStart;
+  final end = start.add(const Duration(minutes: 3));
+
+  final driver = await _selectOutlineDriver(client, sessionKey);
+  if (driver == null) return [];
+
+  final data = await client.getLocationForDriver(
+    sessionKey,
+    driver,
+    start: start,
+    end: end,
+  );
+  final list = data
+      .map((json) => CarLocation.fromJson(json))
+      .where((loc) => loc.driverNumber > 0)
+      .toList()
+    ..sort((a, b) => a.date.compareTo(b.date));
+  return _downsample(list, 2000);
+});
+
+DateTime _normalizeUtc(DateTime date) {
+  if (date.isUtc) return date;
+  return DateTime.utc(
+    date.year,
+    date.month,
+    date.day,
+    date.hour,
+    date.minute,
+    date.second,
+    date.millisecond,
+    date.microsecond,
+  );
+}
+
+DateTime? _parseOpenF1Date(String? value) {
+  if (value == null || value.isEmpty) return null;
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) return null;
+  return _normalizeUtc(parsed);
+}
+
+final replaySessionRangeProvider = FutureProvider.autoDispose
+    .family<ReplaySessionRange?, int>((ref, sessionKey) async {
+  final client = ref.read(openF1ClientProvider);
+  final sessions = await client.getSessionsByKey(sessionKey);
+  if (sessions.isEmpty) return null;
+  final session = Session.fromJson(sessions.first);
+  final start = _normalizeUtc(session.dateStart);
+  final end = session.dateEnd != null
+      ? _normalizeUtc(session.dateEnd!)
+      : start.add(const Duration(hours: 2));
+  return ReplaySessionRange(start: start, end: end);
+});
+
+final replayPositionsProvider = FutureProvider.autoDispose
+    .family<Map<int, List<PositionSample>>, int>((ref, sessionKey) async {
+  const sampleMs = 10000;
+  final client = ref.read(openF1ClientProvider);
+  final data = await client.getPositions(
+    sessionKey: sessionKey,
+  );
+
+  final map = <int, List<PositionSample>>{};
+  for (final json in data) {
+    final dateStr = json['date'] as String?;
+    final date = _parseOpenF1Date(dateStr);
+    if (date == null) continue;
+    final driverNum = (json['driver_number'] as num?)?.toInt() ?? 0;
+    final position = (json['position'] as num?)?.toInt() ?? 0;
+    if (driverNum <= 0 || position <= 0) continue;
+    map.putIfAbsent(driverNum, () => []).add(
+          PositionSample(time: date, position: position),
+        );
+  }
+
+  for (final entry in map.entries) {
+    entry.value.sort((a, b) => a.time.compareTo(b.time));
+    map[entry.key] = _downsamplePositions(entry.value, sampleMs);
+  }
+
+  return map;
+});
+
+List<PositionSample> _downsamplePositions(
+  List<PositionSample> list,
+  int sampleMs,
+) {
+  if (list.isEmpty) return list;
+  final result = <PositionSample>[];
+  DateTime? last;
+  for (final item in list) {
+    if (last == null ||
+        item.time.difference(last).inMilliseconds >= sampleMs) {
+      result.add(item);
+      last = item.time;
+    }
+  }
+  return result;
+}
+
+Future<int?> _selectOutlineDriver(OpenF1Client client, int sessionKey) async {
+  try {
+    final results = await client.getSessionResult(sessionKey);
+    for (final json in results) {
+      final position = (json['position'] as num?)?.toInt() ?? 0;
+      final driver = (json['driver_number'] as num?)?.toInt() ?? 0;
+      if (position == 1 && driver > 0) return driver;
+    }
+  } catch (_) {}
+  try {
+    final drivers = await client.getDrivers(sessionKey);
+    for (final d in drivers) {
+      final driver = (d['driver_number'] as num?)?.toInt() ?? 0;
+      if (driver > 0) return driver;
+    }
+  } catch (_) {}
+  return null;
+}
+
+final replayTimelineProvider = FutureProvider.autoDispose
+    .family<List<ReplayTimelineEvent>, int>((ref, sessionKey) async {
+  final client = ref.read(openF1ClientProvider);
+  final events = <ReplayTimelineEvent>[];
+
+  try {
+    final raceControl = await client.getRaceControl(sessionKey: sessionKey);
+    for (final json in raceControl) {
+      final dateStr = json['date'] as String?;
+      final date = _parseOpenF1Date(dateStr);
+      if (date == null) continue;
+      final category =
+          (json['category'] ?? json['flag'] ?? 'Race Control') as String;
+      final message = json['message'] as String? ?? '';
+      final lap = (json['lap_number'] as num?)?.toInt();
+      events.add(ReplayTimelineEvent(
+        time: date,
+        title: category,
+        detail: message.isEmpty ? null : message,
+        lapNumber: lap,
+        type: 'race_control',
+      ));
+    }
+  } catch (_) {}
+
+  try {
+    final pitData = await client.getPitStops(sessionKey);
+    final pitStops = pitData.map((j) => PitStop.fromJson(j));
+    for (final pit in pitStops) {
+      final date = pit.date != null ? _normalizeUtc(pit.date!) : null;
+      if (date == null) continue;
+      events.add(ReplayTimelineEvent(
+        time: date,
+        title: 'Pit Stop',
+        detail: 'Lap ${pit.lapNumber} · ${pit.formattedDuration}',
+        driverNumber: pit.driverNumber,
+        lapNumber: pit.lapNumber,
+        type: 'pit',
+      ));
+    }
+  } catch (_) {}
+
+  events.sort((a, b) => a.time.compareTo(b.time));
+  return events;
+});
+
 /// Drivers for the replay session
 final replayDriversProvider = FutureProvider.autoDispose
     .family<Map<int, Driver>, int>((ref, sessionKey) async {
@@ -223,7 +452,17 @@ final replayWeatherProvider = FutureProvider.autoDispose
     .family<List<Weather>, int>((ref, sessionKey) async {
   final client = ref.read(openF1ClientProvider);
   final data = await client.getWeather(sessionKey: sessionKey);
-  return data.map((j) => Weather.fromJson(j)).toList();
+  return data.map((j) => Weather.fromJson(j)).map((weather) {
+    return Weather(
+      date: weather.date != null ? _normalizeUtc(weather.date!) : null,
+      airTemperature: weather.airTemperature,
+      trackTemperature: weather.trackTemperature,
+      humidity: weather.humidity,
+      rainfall: weather.rainfall,
+      windSpeed: weather.windSpeed,
+      windDirection: weather.windDirection,
+    );
+  }).toList();
 });
 
 List<CarLocation> _downsample(List<CarLocation> list, int sampleMs) {

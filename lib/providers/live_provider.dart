@@ -56,12 +56,42 @@ final livePollingProvider = StreamProvider.autoDispose<int>((ref) {
   return controller.stream;
 });
 
-final nextMeetingProvider = FutureProvider.autoDispose<Meeting?>((ref) async {
+/// Next upcoming session with its parent meeting info.
+class NextSessionInfo {
+  final Meeting meeting;
+  final Session session;
+
+  const NextSessionInfo({required this.meeting, required this.session});
+}
+
+final nextSessionProvider =
+    FutureProvider.autoDispose<NextSessionInfo?>((ref) async {
   final year = DateTime.now().year;
+  final client = ref.read(openF1ClientProvider);
   final meetings = await ref.watch(meetingsProvider(year).future);
   final now = DateTime.now();
-  for (final m in meetings) {
-    if (m.dateStart.isAfter(now)) return m;
+
+  // Look through meetings around current date to find the next upcoming session
+  for (final meeting in meetings) {
+    // Skip meetings that ended long ago (more than 7 days)
+    if (meeting.dateStart.isBefore(now.subtract(const Duration(days: 7)))) {
+      continue;
+    }
+
+    final sessionsData = await client.getSessions(meeting.meetingKey);
+    final sessions = sessionsData.map((s) => Session.fromJson(s)).toList();
+    sessions.sort((a, b) => a.dateStart.compareTo(b.dateStart));
+
+    for (final session in sessions) {
+      // Session hasn't started yet → this is the next one
+      if (session.dateStart.isAfter(now)) {
+        return NextSessionInfo(meeting: meeting, session: session);
+      }
+      // Session started but not ended yet → currently live (shouldn't reach here normally)
+      if (!session.isCompleted) {
+        return NextSessionInfo(meeting: meeting, session: session);
+      }
+    }
   }
   return null;
 });

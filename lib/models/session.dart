@@ -32,9 +32,27 @@ class Session {
     );
   }
 
-  bool get isRace => sessionType == 'Race';
+  bool get isRace => sessionType == 'Race' && !isSprint;
+  bool get isSprintQualifying {
+    final type = sessionType.toLowerCase();
+    final name = sessionName.toLowerCase();
+    final isSprintLike = type.contains('sprint') || name.contains('sprint');
+    final isQualifyingLike =
+        type.contains('qualifying') || type.contains('shootout');
+    final nameQualifyingLike =
+        name.contains('qualifying') || name.contains('shootout');
+    return isSprintLike && (isQualifyingLike || nameQualifyingLike);
+  }
+
+  bool get isSprint {
+    final type = sessionType.toLowerCase();
+    final name = sessionName.toLowerCase();
+    final isSprintLike = type.contains('sprint') || name.contains('sprint');
+    return isSprintLike && !isSprintQualifying;
+  }
   bool get isQualifying => sessionType == 'Qualifying';
   bool get isPractice => sessionType.contains('Practice'); // 추가
   bool get isCompleted =>
       dateEnd != null && dateEnd!.isBefore(DateTime.now());
+  bool get isReplayTarget => isRace || isSprint;
 }

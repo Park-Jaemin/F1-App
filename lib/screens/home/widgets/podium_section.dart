@@ -25,8 +25,6 @@ class PodiumSection extends ConsumerWidget {
       return _UpcomingInfo(meeting: meeting);
     }
 
-    final raceSessionAsync =
-        ref.watch(raceSessionProvider(meeting.meetingKey));
     final sessionsAsync = ref.watch(sessionsProvider(meeting.meetingKey));
 
     return sessionsAsync.when(
@@ -46,6 +44,10 @@ class PodiumSection extends ConsumerWidget {
           );
         }
 
+        final replayTargets =
+            completed.where((s) => s.isReplayTarget).toList()
+              ..sort((a, b) => a.dateStart.compareTo(b.dateStart));
+
         return Column(
           children: [
             Expanded(
@@ -54,21 +56,18 @@ class PodiumSection extends ConsumerWidget {
                 meeting: meeting,
               ),
             ),
-            raceSessionAsync.when(
-              data: (session) {
-                if (session == null || !session.isCompleted) {
-                  return const SizedBox.shrink();
-                }
-                return _ReplayButton(
-                  meetingKey: meeting.meetingKey,
-                  meetingName: meeting.meetingName,
-                  sessionKey: session.sessionKey,
-                  sessionName: session.sessionName,
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (e, _) => const SizedBox.shrink(),
-            ),
+            if (replayTargets.isNotEmpty)
+              replayTargets.length == 1
+                  ? _ReplayButton(
+                      meetingKey: meeting.meetingKey,
+                      meetingName: meeting.meetingName,
+                      sessionKey: replayTargets.first.sessionKey,
+                      sessionName: replayTargets.first.sessionName,
+                    )
+                  : _ReplayButtons(
+                      meeting: meeting,
+                      sessions: replayTargets,
+                    ),
           ],
         );
       },
@@ -280,8 +279,8 @@ class _ReplayButton extends StatelessWidget {
             onPressed: () {
               final encodedMeeting = Uri.encodeComponent(meetingName);
               final encodedSession = Uri.encodeComponent(sessionName);
-              context.go(
-                '/race/$meetingKey/$encodedMeeting/replay/$sessionKey/$encodedSession',
+              context.push(
+                '/replay/$encodedMeeting/$sessionKey/$encodedSession',
               );
             },
             icon: const Icon(Icons.replay, size: 20),
@@ -304,6 +303,73 @@ class _ReplayButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ReplayButtons extends StatelessWidget {
+  final Meeting meeting;
+  final List<Session> sessions;
+
+  const _ReplayButtons({
+    required this.meeting,
+    required this.sessions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        decoration: const BoxDecoration(
+          color: F1Colors.surface,
+          border: Border(top: BorderSide(color: F1Colors.divider)),
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < sessions.length; i++) ...[
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    final encodedMeeting =
+                        Uri.encodeComponent(meeting.meetingName);
+                    final encodedSession =
+                        Uri.encodeComponent(sessions[i].sessionName);
+                    context.push(
+                      '/replay/$encodedMeeting/${sessions[i].sessionKey}/$encodedSession',
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: F1Colors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    _labelFor(sessions[i]),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+              if (i != sessions.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _labelFor(Session session) {
+    if (session.isSprint) return 'SPRINT REPLAY';
+    if (session.isRace) return 'RACE REPLAY';
+    return '${localizeSession(session.sessionName).toUpperCase()} REPLAY';
   }
 }
 

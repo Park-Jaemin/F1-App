@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/korean_locale.dart';
 import '../../../core/theme.dart';
-import '../../../models/meeting.dart';
+import '../../../providers/live_provider.dart';
 
 class NextSessionCard extends StatefulWidget {
-  final Meeting meeting;
+  final NextSessionInfo info;
 
-  const NextSessionCard({super.key, required this.meeting});
+  const NextSessionCard({super.key, required this.info});
 
   @override
   State<NextSessionCard> createState() => _NextSessionCardState();
@@ -33,8 +33,10 @@ class _NextSessionCardState extends State<NextSessionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final meeting = widget.info.meeting;
+    final session = widget.info.session;
     final now = DateTime.now();
-    final diff = widget.meeting.dateStart.difference(now);
+    final diff = session.dateStart.difference(now);
     final days = diff.inDays;
     final hours = diff.inHours % 24;
     final minutes = diff.inMinutes % 60;
@@ -61,18 +63,34 @@ class _NextSessionCardState extends State<NextSessionCard> {
             ),
             const SizedBox(height: 32),
             Text(
-              '다음 그랑프리',
+              '다음 세션',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             Text(
-              '${widget.meeting.flagEmoji} ${localizeGrandPrix(widget.meeting.meetingName)}',
+              '${meeting.flagEmoji} ${localizeGrandPrix(meeting.meetingName)}',
               style: Theme.of(context).textTheme.headlineMedium,
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: F1Colors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                localizeSession(session.sessionName),
+                style: const TextStyle(
+                  color: F1Colors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
-              '${widget.meeting.circuitShortName} · ${widget.meeting.location}',
+              '${meeting.circuitShortName} · ${meeting.location}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 24),
@@ -89,7 +107,7 @@ class _NextSessionCardState extends State<NextSessionCard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _CountdownUnit(value: days, label: '일'),
+                  if (days > 0) _CountdownUnit(value: days, label: '일'),
                   _CountdownUnit(value: hours, label: '시간'),
                   _CountdownUnit(value: minutes, label: '분'),
                   _CountdownUnit(value: seconds, label: '초'),

@@ -147,18 +147,6 @@ class OpenF1Client {
     );
   }
 
-  /// [sessionKey] — `null` means "latest" (live), otherwise a specific session.
-  Future<List<Map<String, dynamic>>> getPositions({int? sessionKey}) async {
-    final key = sessionKey ?? 'latest';
-    return _getList(
-      ApiEndpoints.position,
-      query: {'session_key': key},
-      ttl: sessionKey != null
-          ? const Duration(hours: 1)
-          : const Duration(seconds: 15),
-    );
-  }
-
   Future<List<Map<String, dynamic>>> getIntervals({int? sessionKey}) async {
     final key = sessionKey ?? 'latest';
     return _getList(
@@ -175,6 +163,32 @@ class OpenF1Client {
     return _getList(
       ApiEndpoints.raceControl,
       query: {'session_key': key},
+      ttl: sessionKey != null
+          ? const Duration(hours: 1)
+          : const Duration(seconds: 15),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPositions({
+    int? sessionKey,
+    int? positionMax,
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    final key = sessionKey ?? 'latest';
+    final query = <String, dynamic>{'session_key': key};
+    if (positionMax != null) {
+      query['position<='] = positionMax;
+    }
+    if (start != null) {
+      query['date>'] = start.toIso8601String();
+    }
+    if (end != null) {
+      query['date<'] = end.toIso8601String();
+    }
+    return _getList(
+      ApiEndpoints.position,
+      query: query,
       ttl: sessionKey != null
           ? const Duration(hours: 1)
           : const Duration(seconds: 15),

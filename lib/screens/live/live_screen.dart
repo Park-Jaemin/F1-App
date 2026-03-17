@@ -42,13 +42,8 @@ class LiveScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(liveSessionProvider),
         ),
         data: (session) {
-          if (session == null) {
-            return _NoSessionView();
-          }
-
-          final isActive = !session.isCompleted;
-          if (!isActive) {
-            return _InactiveSessionView();
+          if (session == null || session.isCompleted) {
+            return _NextSessionView();
           }
 
           return _ActiveSessionView();
@@ -58,18 +53,18 @@ class LiveScreen extends ConsumerWidget {
   }
 }
 
-class _NoSessionView extends ConsumerWidget {
+class _NextSessionView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nextMeeting = ref.watch(nextMeetingProvider);
-    return nextMeeting.when(
+    final nextSession = ref.watch(nextSessionProvider);
+    return nextSession.when(
       loading: () => const F1LoadingWidget(),
       error: (e, _) => F1ErrorWidget(
         error: e,
-        onRetry: () => ref.invalidate(nextMeetingProvider),
+        onRetry: () => ref.invalidate(nextSessionProvider),
       ),
-      data: (meeting) {
-        if (meeting == null) {
+      data: (info) {
+        if (info == null) {
           return const Center(
             child: Text(
               '예정된 세션이 없습니다',
@@ -77,32 +72,7 @@ class _NoSessionView extends ConsumerWidget {
             ),
           );
         }
-        return NextSessionCard(meeting: meeting);
-      },
-    );
-  }
-}
-
-class _InactiveSessionView extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final nextMeeting = ref.watch(nextMeetingProvider);
-    return nextMeeting.when(
-      loading: () => const F1LoadingWidget(),
-      error: (e, _) => F1ErrorWidget(
-        error: e,
-        onRetry: () => ref.invalidate(nextMeetingProvider),
-      ),
-      data: (meeting) {
-        if (meeting == null) {
-          return const Center(
-            child: Text(
-              '현재 진행 중인 세션이 없습니다',
-              style: TextStyle(color: F1Colors.textSecondary),
-            ),
-          );
-        }
-        return NextSessionCard(meeting: meeting);
+        return NextSessionCard(info: info);
       },
     );
   }

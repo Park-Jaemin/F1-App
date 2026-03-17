@@ -14,6 +14,9 @@ class SessionResult {
   final bool dnq;
   final double? gapToLeader;
   final String? headshotUrl;
+  final double? q1;
+  final double? q2;
+  final double? q3;
 
   const SessionResult({
     required this.position,
@@ -31,9 +34,29 @@ class SessionResult {
     this.dnq = false,
     this.gapToLeader,
     this.headshotUrl,
+    this.q1,
+    this.q2,
+    this.q3,
   });
 
   factory SessionResult.fromJson(Map<String, dynamic> json) {
+    double? asDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    final duration = json['duration'];
+    double? q1;
+    double? q2;
+    double? q3;
+    if (duration is List) {
+      if (duration.isNotEmpty) q1 = asDouble(duration[0]);
+      if (duration.length > 1) q2 = asDouble(duration[1]);
+      if (duration.length > 2) q3 = asDouble(duration[2]);
+    }
+
     return SessionResult(
       position: (json['position'] as num?)?.toInt() ?? 0,
       driverNumber: (json['driver_number'] as num?)?.toInt() ?? 0,
@@ -52,6 +75,9 @@ class SessionResult {
           ? (json['gap_to_leader'] as num).toDouble()
           : null,
       headshotUrl: json['headshot_url'] as String?,
+      q1: q1,
+      q2: q2,
+      q3: q3,
     );
   }
 

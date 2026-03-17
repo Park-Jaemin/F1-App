@@ -32,24 +32,22 @@ final appRouter = GoRouter(
                       meetingName: meetingName,
                     );
                   },
-                  routes: [
-                    GoRoute(
-                      path: 'replay/:sessionKey/:sessionName',
-                      builder: (context, state) {
-                        final sessionKey =
-                            int.parse(state.pathParameters['sessionKey']!);
-                        final meetingName = Uri.decodeComponent(
-                            state.pathParameters['meetingName']!);
-                        final sessionName = Uri.decodeComponent(
-                            state.pathParameters['sessionName']!);
-                        return ReplayScreen(
-                          sessionKey: sessionKey,
-                          meetingName: meetingName,
-                          sessionName: sessionName,
-                        );
-                      },
-                    ),
-                  ],
+                ),
+                GoRoute(
+                  path: 'replay/:meetingName/:sessionKey/:sessionName',
+                  builder: (context, state) {
+                    final meetingName = Uri.decodeComponent(
+                        state.pathParameters['meetingName']!);
+                    final sessionKey =
+                        int.parse(state.pathParameters['sessionKey']!);
+                    final sessionName = Uri.decodeComponent(
+                        state.pathParameters['sessionName']!);
+                    return ReplayScreen(
+                      sessionKey: sessionKey,
+                      meetingName: meetingName,
+                      sessionName: sessionName,
+                    );
+                  },
                 ),
               ],
             ),

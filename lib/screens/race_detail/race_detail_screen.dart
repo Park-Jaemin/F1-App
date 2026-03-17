@@ -40,19 +40,40 @@ class RaceDetailScreen extends ConsumerWidget {
           );
         }
 
-        // 세션 정렬 (시간순)
-        final sortedSessions = List.of(sessions)
+        // 완료된 세션만 노출 (미완료 세션은 결과 API에서 404 발생 가능)
+        final completedSessions = sessions
+            .where((s) => s.isCompleted)
+            .toList()
           ..sort((a, b) => a.dateStart.compareTo(b.dateStart));
 
+        if (completedSessions.isEmpty) {
+          return Scaffold(
+            backgroundColor: F1Colors.background,
+            appBar: AppBar(
+              backgroundColor: F1Colors.background,
+              title: Text(localizeGrandPrix(meetingName)),
+            ),
+            body: const Center(
+              child: Text(
+                '완료된 세션이 없습니다',
+                style: TextStyle(color: F1Colors.textSecondary),
+              ),
+            ),
+          );
+        }
+
         // 레이스 세션 찾기 (피트스톱 탭을 위해)
-        final raceSession = sortedSessions.where((s) => s.isRace).firstOrNull;
+        final raceSession =
+            completedSessions.where((s) => s.isRace).firstOrNull;
 
         // 탭 구성: 모든 세션 + (레이스가 있다면) 피트스톱
-        final tabsCount = sortedSessions.length + (raceSession != null ? 1 : 0);
+        final tabsCount =
+            completedSessions.length + (raceSession != null ? 1 : 0);
 
         return DefaultTabController(
           length: tabsCount,
-          initialIndex: (sortedSessions.length - 1).clamp(0, tabsCount - 1), // 기본으로 마지막 세션(보통 레이스) 선택
+          initialIndex:
+              (completedSessions.length - 1).clamp(0, tabsCount - 1), // 기본으로 마지막 세션(보통 레이스) 선택
           child: Scaffold(
             backgroundColor: F1Colors.background,
             appBar: AppBar(
@@ -74,9 +95,10 @@ class RaceDetailScreen extends ConsumerWidget {
                 isScrollable: true,
                 physics: const ClampingScrollPhysics(),
                 padding: EdgeInsets.zero,
-                tabAlignment: TabAlignment.start,
+                tabAlignment: TabAlignment.center,
                 tabs: [
-                  ...sortedSessions.map((s) => Tab(text: localizeSession(s.sessionName))),
+                  ...completedSessions
+                      .map((s) => Tab(text: localizeSession(s.sessionName))),
                   if (raceSession != null) const Tab(text: '피트스톱'),
                 ],
                 labelColor: F1Colors.primary,
@@ -87,14 +109,16 @@ class RaceDetailScreen extends ConsumerWidget {
             body: _LazyTabBarView(
               length: tabsCount,
               builder: (context, index) {
-                if (index < sortedSessions.length) {
-                  final session = sortedSessions[index];
+                if (index < completedSessions.length) {
+                  final session = completedSessions[index];
                   return ResultList(
                     sessionKey: session.sessionKey,
-                    isPractice: session.sessionType == 'Practice',
+                    isPractice: session.isPractice,
+                    isQualifying: session.isQualifying,
                   );
                 }
-                if (raceSession != null && index == sortedSessions.length) {
+                if (raceSession != null &&
+                    index == completedSessions.length) {
                   return PitStopsTab(sessionKey: raceSession.sessionKey);
                 }
                 return const SizedBox.shrink();
